@@ -30,11 +30,7 @@ def get_chrome_major_version():
     """
     Robust Windows + Linux Chrome major version detection.
     """
-    # 0) If GITHUB_ACTIONS is set, skip
-    if os.environ.get("GITHUB_ACTIONS"):
-        return None 
-
-    # --- 1) Try Registry (Windows) - Very reliable for many versions
+    # --- 1) Try Registry (Windows Only)
     if os.name == 'nt':
         reg_keys = [
             r"HKCU\Software\Google\Chrome\BLBeacon",
@@ -43,57 +39,50 @@ def get_chrome_major_version():
         ]
         for key in reg_keys:
             try:
-                reg_out = subprocess.check_output(
-                    ["reg", "query", key, "/v", "version"],
-                    text=True, stderr=subprocess.STDOUT
-                )
+                reg_out = subprocess.check_output(["reg", "query", key, "/v", "version"], text=True, stderr=subprocess.STDOUT)
                 m = re.search(r"REG_SZ\s+([0-9.]+)", reg_out) or re.search(r"version\s+REG_SZ\s+([0-9.]+)", reg_out, re.IGNORECASE)
                 if m:
                     major = _parse_major(m.group(1))
                     if major:
-                        print(f"DEBUG: Found Chrome {major} via Registry at {key}")
+                        print(f"DEBUG: Found Chrome {major} via Registry.")
                         return major
             except Exception:
                 pass
 
-    # --- 2) Try PATH: `where chrome` or `which google-chrome`
-    try:
-        cmd = ["where", "chrome"] if os.name == 'nt' else ["which", "google-chrome"]
-        where_out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
-        for line in where_out.splitlines():
-            chrome_path = line.strip()
-            if chrome_path and os.path.exists(chrome_path):
+    # --- 2) Try CLI commands (Windows & Linux)
+    commands = [
+        ["google-chrome", "--version"],
+        ["chrome", "--version"],
+        ["google-chrome-stable", "--version"],
+    ]
+    for cmd in commands:
+        try:
+            ver_out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT).strip()
+            major = _parse_major(ver_out)
+            if major:
+                print(f"DEBUG: Found Chrome {major} via CLI ({' '.join(cmd)})")
+                return major
+        except Exception:
+            pass
+
+    # --- 3) Try absolute paths (Windows)
+    if os.name == 'nt':
+        local = os.environ.get("LOCALAPPDATA", "")
+        candidates = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
+        ]
+        for chrome_path in candidates:
+            if os.path.exists(chrome_path):
                 try:
                     ver_out = subprocess.check_output([chrome_path, "--version"], text=True).strip()
                     major = _parse_major(ver_out)
                     if major:
-                        print(f"DEBUG: Found Chrome {major} via CLI at {chrome_path}")
+                        print(f"DEBUG: Found Chrome {major} via Path.")
                         return major
                 except Exception:
                     pass
-    except Exception:
-        pass
-
-    if os.name != 'nt':
-        return None
-
-    # --- 3) Try common Windows paths
-    local = os.environ.get("LOCALAPPDATA", "")
-    candidates = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
-    ]
-    for chrome_path in candidates:
-        if os.path.exists(chrome_path):
-            try:
-                ver_out = subprocess.check_output([chrome_path, "--version"], text=True).strip()
-                major = _parse_major(ver_out)
-                if major:
-                    print(f"DEBUG: Found Chrome {major} via Path {chrome_path}")
-                    return major
-            except Exception:
-                pass
     return None
 
 
