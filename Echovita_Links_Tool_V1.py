@@ -98,7 +98,11 @@ def get_chrome_major_version():
 
 
 PER_PAGE = 24
-OUTPUT_FILENAME = "Echovita_Links_New_Tool_Output.xlsx"
+from datetime import datetime
+
+# Generate a timestamped filename for unique exports
+_now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+OUTPUT_FILENAME = f"Echovita_Results_{_now}.xlsx"
 CAPTCHA_TEXT = (
     "This website uses a security service to protect against malicious bots. "
     "This page is displayed while the website verifies you are not a bot."
